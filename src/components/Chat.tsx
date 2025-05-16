@@ -1,7 +1,7 @@
 'use client'
-import React, { useRef, useEffect, useState } from 'react';
-import { Check, Clipboard, User, Send, GitGraphIcon, Paperclip, MessageSquarePlus, X, ChevronRight, Brain, Settings } from 'lucide-react';
-import useMessageStore from '@/store/messages';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
+import { Check, Clipboard, User, Send, X, Brain, Settings } from 'lucide-react';
+import useMessageStore, { MessageNode } from '@/store/messages';
 import toast from 'react-hot-toast';
 
 const ChatComponent: React.FC = () => {
@@ -10,8 +10,8 @@ const ChatComponent: React.FC = () => {
     isLoading,
     input, 
     setInput, 
-    sendMessage, 
-    setShowModal
+    sendMessage,
+    buildmessageTree
   } = useMessageStore();
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -49,6 +49,58 @@ const ChatComponent: React.FC = () => {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
   };
+
+  const MessageNode = ({ node, level = 0 }: { node: MessageNode, level: number }) => {
+
+    const { message, replies } = node
+
+    const isUser = node.message.sender === 'user';
+    
+    return (
+      <div className={`ml-[${level * 20}px] mt-4`}>
+        <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+          <div className={`relative max-w-3/4 rounded-lg p-3 ${isUser 
+              ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-br-none'
+              : 'bg-white text-slate-800 border border-blue-100 rounded-bl-none shadow-md'}`}>
+            <div className="flex items-center mb-1">
+              {isUser ? (
+                <User size={16} className="mr-1 text-white" />
+              ) : (
+                <Brain className="size-4" />
+              )}
+              <span className="text-xs opacity-70 mx-1">
+                {isUser ? 'You' : 'Jugg'} • {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+            <div className="p-2 whitespace-pre-wrap">{message.text}</div>
+            <button 
+              className={`absolute bottom-2 right-2 p-1 rounded-md transition-all ${isUser ? 'text-white hover:text-blue-200' : 'text-blue-400 hover:text-blue-600'}`}
+              onClick={() => copyToClipboard(message.text, message.id)}
+            >
+              {copiedMessageId === message.id ? (
+                <Check size={16} className="text-green-500" />
+              ) : (
+                <Clipboard size={16}/>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Render children */}
+        {replies.length > 0 && (
+          <div className="ml-6 border-l border-blue-200 pl-4 mt-2">
+            {replies.map(child => (
+              <MessageNode
+                key={child.message.id}
+                node={child}
+                level={level + 1}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+};
 
   const resetTextAreaHeight = () => {
     const textArea = textAreaRef.current;
@@ -133,6 +185,8 @@ const ChatComponent: React.FC = () => {
     return tone?.name || "Juggernaut";
   };
 
+  const tree = useMemo(() => buildmessageTree(messages), [messages]);
+
   return (
     <div className="flex flex-col w-full h-[90vh] max-w-[70%] mx-auto relative">
       <div className="flex-1 p-4 pb-40 mt-24 overflow-y-auto relative bg-white">
@@ -143,58 +197,18 @@ const ChatComponent: React.FC = () => {
           </div>
         </div>
         
-        {messages.length === 0 ? (
+        {tree.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-blue-500">
             <p className="text-center">Chat with Juggernaut</p>
           </div>
         ) : (
-          messages.map((message) => (
-            <div 
-              key={message.id} 
-              className={`flex mb-4 ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div 
-                className={`relative max-w-3/4 rounded-lg p-3 ${
-                  message.sender === 'user' 
-                    ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-br-none' 
-                    : 'bg-white text-slate-800 border border-blue-100 rounded-bl-none shadow-md'
-                }`}
-                style={{ width: message.sender === 'ai' ? '75%' : 'auto' }}
-              >
-                <div className="flex flex-col w-full">
-                  <div className="flex items-center mb-1">
-                    {message.sender === 'ai' ? (
-                      <Brain className="size-4"/>
-                    ) : (
-                      <User size={16} className="mr-1 text-white" />
-                    )}
-                    <span className="text-xs opacity-70 mx-1">
-                      {message.sender === 'ai' ? 'Jugg' : 'You'} • {formatTime(message.timestamp)}
-                    </span>
-                  </div>
-                  
-                  <div className="w-full p-3">
-                    <div className="whitespace-pre-wrap">{message.text}</div>
-                  </div>
-    
-                  <button 
-                    className={`absolute bottom-2 right-2 p-1 rounded-md transition-all ${
-                      message.sender === 'user'
-                        ? 'text-white hover:text-blue-200'
-                        : 'text-blue-400 hover:text-blue-600'
-                    }`}
-                    onClick={() => copyToClipboard(message.text, message.id)}
-                  >
-                    {copiedMessageId === message.id ? (
-                      <Check size={16} className="text-green-500" />
-                    ) : (
-                      <Clipboard size={16}/>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))
+          tree.map(node => (
+        <MessageNode
+          key={node.message.id}
+          node={node}
+          level={0}
+        />
+      ))
         )}
         
         {isLoading && (
