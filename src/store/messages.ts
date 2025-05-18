@@ -191,7 +191,7 @@ const useMessageStore = create<MessageState>((set, get) => ({
   },
 
   sendMessage: async () => {
-    const { input, setInput, handleAIResponse, latestAIMessageId } = get();
+    const { input, setInput, handleAIResponse } = get();
     if (!input.trim()) return;
 
     const messageText = input;
